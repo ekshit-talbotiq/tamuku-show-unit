@@ -1117,18 +1117,23 @@ let tx0 = null;
 addEventListener('touchstart', e => tx0 = e.touches[0].clientX, { passive: true });
 addEventListener('touchend', e => { if (tx0 === null) return; const dx = e.changedTouches[0].clientX - tx0; if (Math.abs(dx) > 50) (dx < 0 ? next : prev)(); tx0 = null; });
 
-/* wheel and trackpad: one scroll is one step. A gesture moves exactly one step, then the wheel
-   is ignored until the scrolling (and any trackpad momentum) has been quiet for 200ms, so a
-   hard flick never skips ahead. */
-let wheelLock = false, wheelQuiet;
+/* wheel and trackpad: one scroll is one step. A trackpad keeps sending fading "momentum" events
+   after the fingers lift, so those are ignored; a new swipe is recognised the moment it starts
+   (after a pause, or when the scroll speeds up again instead of fading), so it is never stuck.
+   A mouse wheel moves one step per notch, at most one every 450ms. */
+let lastWheel = 0, lastStep = 0, lastAbs = 0;
 addEventListener('wheel', e => {
   if (L.mode === 'stack' || menu.style.visibility === 'visible') return;
   e.preventDefault();
-  clearTimeout(wheelQuiet);
-  wheelQuiet = setTimeout(() => { wheelLock = false; }, 200);
-  const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-  if (wheelLock || Math.abs(d) < 4) return;
-  wheelLock = true;
+  const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX, a = Math.abs(d);
+  const now = performance.now(), gap = now - lastWheel, since = now - lastStep;
+  const rising = a > lastAbs * 1.5 + 2;
+  lastWheel = now; lastAbs = a;
+  if (a < 4 || since < 350) return;
+  const mouse = e.deltaMode === 1 || (e.wheelDeltaY && e.wheelDeltaY !== -3 * e.deltaY);
+  const fresh = mouse ? since > 450 : gap > 100 || rising;
+  if (!fresh) return;
+  lastStep = now;
   (d > 0 ? next : prev)();
 }, { passive: false });
 
