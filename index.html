@@ -1117,25 +1117,19 @@ let tx0 = null;
 addEventListener('touchstart', e => tx0 = e.touches[0].clientX, { passive: true });
 addEventListener('touchend', e => { if (tx0 === null) return; const dx = e.changedTouches[0].clientX - tx0; if (Math.abs(dx) > 50) (dx < 0 ? next : prev)(); tx0 = null; });
 
-/* wheel and trackpad: one screen height of scrolling is one step, like a normal scroll story.
-   When the scrolling (and any trackpad momentum) has stopped for 220ms, it settles on a whole
-   step: forward once you are a quarter of the way into the next one, otherwise back. */
-let wheelDir = 1, snapT;
+/* wheel and trackpad: one scroll is one step. A gesture moves exactly one step, then the wheel
+   is ignored until the scrolling (and any trackpad momentum) has been quiet for 200ms, so a
+   hard flick never skips ahead. */
+let wheelLock = false, wheelQuiet;
 addEventListener('wheel', e => {
   if (L.mode === 'stack' || menu.style.visibility === 'visible') return;
   e.preventDefault();
-  if (glideTw) { glideTw.kill(); glideTw = null; S.tgt = S.cur; }
-  let d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-  if (e.deltaMode === 1) d *= 40;
-  else if (e.wheelDeltaY && e.wheelDeltaY !== -3 * e.deltaY) d = Math.sign(d) * Math.max(Math.abs(d), 240); /* a mouse-wheel notch */
-  if (d) wheelDir = Math.sign(d);
-  S.tgt = Math.max(0, Math.min(MAX, S.tgt + d / Math.max(700, innerHeight)));
-  clearTimeout(snapT);
-  snapT = setTimeout(() => {
-    const base = Math.floor(S.tgt), f = S.tgt - base;
-    if (f < .001) return;
-    glide(wheelDir > 0 ? (f > .25 ? base + 1 : base) : (f < .75 ? base : base + 1), .6);
-  }, 220);
+  clearTimeout(wheelQuiet);
+  wheelQuiet = setTimeout(() => { wheelLock = false; }, 200);
+  const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+  if (wheelLock || Math.abs(d) < 4) return;
+  wheelLock = true;
+  (d > 0 ? next : prev)();
 }, { passive: false });
 
 /* the clock on the opening ticks for real, from 8:42:07 pm */
